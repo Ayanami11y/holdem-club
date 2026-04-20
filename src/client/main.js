@@ -7,54 +7,56 @@ $(document).ready(function () {
 var socket = io();
 var gameInfo = null;
 
+function renderPlayersList(players) {
+  return players
+    .map(function (p) {
+      return '<span>' + p + '</span><br />';
+    })
+    .join('');
+}
+
+function renderStartButton(code, label) {
+  return (
+    '<br /><button onclick="startGame(\'' +
+    code +
+    '\')" type="submit" class="waves-effect waves-light btn-flat modal-action-btn">' +
+    label +
+    '</button>'
+  );
+}
+
 socket.on('playerDisconnected', function (data) {
-  Materialize.toast(data.player + ' disconnected.', 4000);
+  Materialize.toast(data.player + ' left the table.', 4000);
 });
 
 socket.on('hostRoom', function (data) {
   if (data != undefined) {
     if (data.players.length >= 11) {
       $('#hostModalContent').html(
-        '<h5>Code:</h5><code>' +
+        '<h5>Room code</h5><code>' +
           data.code +
-          '</code><br /><h5>Warning: you have too many players in your room. Max is 11.</h5><h5>Players Currently in My Room</h5>'
+          '</code><br /><h5>Table is full. Maximum seats: 11 players.</h5><h5>Players in this room</h5>'
       );
-      $('#playersNames').html(
-        data.players.map(function (p) {
-          return '<span>' + p + '</span><br />';
-        })
-      );
+      $('#playersNames').html(renderPlayersList(data.players));
     } else if (data.players.length > 1) {
       $('#hostModalContent').html(
-        '<h5>Code:</h5><code>' +
+        '<h5>Room code</h5><code>' +
           data.code +
-          '</code><br /><h5>Players Currently in My Room</h5>'
+          '</code><br /><h5>Players in this room</h5><p>Everyone is in. Start the table when you are ready.</p>'
       );
-      $('#playersNames').html(
-        data.players.map(function (p) {
-          return '<span>' + p + '</span><br />';
-        })
-      );
-      $('#startGameArea').html(
-        '<br /><button onclick=startGame(' +
-          data.code +
-          ') type="submit" class= "waves-effect waves-light green darken-3 white-text btn-flat">Start Game</button >'
-      );
+      $('#playersNames').html(renderPlayersList(data.players));
+      $('#startGameArea').html(renderStartButton(data.code, 'Start Table'));
     } else {
       $('#hostModalContent').html(
-        '<h5>Code:</h5><code>' +
+        '<h5>Room code</h5><code>' +
           data.code +
-          '</code><br /><h5>Players Currently in My Room</h5>'
+          '</code><br /><h5>Players in this room</h5><p>Share this code with your group. You need at least one more player to start.</p>'
       );
-      $('#playersNames').html(
-        data.players.map(function (p) {
-          return '<span>' + p + '</span><br />';
-        })
-      );
+      $('#playersNames').html(renderPlayersList(data.players));
     }
   } else {
     Materialize.toast(
-      'Enter a valid name! (max length of name is 12 characters)',
+      'Enter a valid display name. Maximum length is 12 characters.',
       4000
     );
     $('#joinButton').removeClass('disabled');
@@ -62,11 +64,7 @@ socket.on('hostRoom', function (data) {
 });
 
 socket.on('hostRoomUpdate', function (data) {
-  $('#playersNames').html(
-    data.players.map(function (p) {
-      return '<span>' + p + '</span><br />';
-    })
-  );
+  $('#playersNames').html(renderPlayersList(data.players));
   if (data.players.length == 1) {
     $('#startGameArea').empty();
   }
@@ -74,28 +72,22 @@ socket.on('hostRoomUpdate', function (data) {
 
 socket.on('joinRoomUpdate', function (data) {
   $('#startGameAreaDisconnectSituation').html(
-    '<br /><button onclick=startGame(' +
-      data.code +
-      ') type="submit" class= "waves-effect waves-light green darken-3 white-text btn-flat">Start Game</button >'
+    renderStartButton(data.code, 'Start Table')
   );
   $('#joinModalContent').html(
     '<h5>' +
       data.host +
-      "'s room</h5><hr /><h5>Players Currently in Room</h5><p>You are now a host of this game.</p>"
+      '\'s table</h5><hr /><h5>Players in this room</h5><p>You are now the host for this table.</p>'
   );
 
-  $('#playersNamesJoined').html(
-    data.players.map(function (p) {
-      return '<span>' + p + '</span><br />';
-    })
-  );
+  $('#playersNamesJoined').html(renderPlayersList(data.players));
 });
 
 socket.on('joinRoom', function (data) {
   if (data == undefined) {
     $('#joinModal').closeModal();
     Materialize.toast(
-      "Enter a valid name/code! (max length of name is 12 characters & cannot be the same as someone else's)",
+      'Enter a valid display name and room code. Names must be unique at the table and 12 characters or fewer.',
       4000
     );
     $('#hostButton').removeClass('disabled');
@@ -103,13 +95,9 @@ socket.on('joinRoom', function (data) {
     $('#joinModalContent').html(
       '<h5>' +
         data.host +
-        "'s room</h5><hr /><h5>Players Currently in Room</h5><p>Please wait until your host starts the game. Leaving the page, refreshing, or going back will disconnect you from the game. </p>"
+        '\'s table</h5><hr /><h5>Players in this room</h5><p>Wait for the host to start. Leaving, refreshing, or going back will disconnect you from the table.</p>'
     );
-    $('#playersNamesJoined').html(
-      data.players.map(function (p) {
-        return '<span>' + p + '</span><br />';
-      })
-    );
+    $('#playersNamesJoined').html(renderPlayersList(data.players));
   }
 });
 
@@ -119,15 +107,15 @@ socket.on('dealt', function (data) {
       return renderCard(c);
     })
   );
-  $('#usernamesCards').text(data.username + ' - My Cards');
+  $('#usernamesCards').text(data.username + ' | Hole Cards');
   $('#mainContent').remove();
 });
 
 socket.on('rerender', function (data) {
   if (data.myBet == 0) {
-    $('#usernamesCards').text(data.username + ' - My Cards');
+    $('#usernamesCards').text(data.username + ' | Hole Cards');
   } else {
-    $('#usernamesCards').text(data.username + ' - My Bet: $' + data.myBet);
+    $('#usernamesCards').text(data.username + ' | Current Bet: $' + data.myBet);
   }
   if (data.community != undefined)
     $('#communityCards').html(
@@ -138,13 +126,13 @@ socket.on('rerender', function (data) {
   else $('#communityCards').html('<p></p>');
   if (data.currBet == undefined) data.currBet = 0;
   $('#table-title').text(
-    'Game ' +
+    'Hand ' +
       data.round +
-      '    |    ' +
+      ' | ' +
       data.stage +
-      '    |    Current Top Bet: $' +
+      ' | Top Bet: $' +
       data.topBet +
-      '    |    Pot: $' +
+      ' | Pot: $' +
       data.pot
   );
   $('#opponentCards').html(
@@ -176,11 +164,11 @@ socket.on('rerender', function (data) {
 });
 
 socket.on('gameBegin', function (data) {
-  $('#navbar-ptwu').hide();
+  $('#siteHeader').hide();
   $('#joinModal').closeModal();
   $('#hostModal').closeModal();
   if (data == undefined) {
-    alert('Error - invalid game.');
+    alert('Error: invalid game room.');
   } else {
     $('#gameDiv').show();
   }
@@ -199,13 +187,13 @@ socket.on('reveal', function (data) {
 
   for (var i = 0; i < data.winners.length; i++) {
     if (data.winners[i] == data.username) {
-      Materialize.toast('You won the hand!', 4000);
+      Materialize.toast('You won the hand.', 4000);
       break;
     }
   }
   $('#table-title').text('Hand Winner(s): ' + data.winners);
   $('#playNext').html(
-    '<button onClick=playNext() id="playNextButton" class="btn white black-text menuButtons">Start Next Game</button>'
+    '<button onClick=playNext() id="playNextButton" class="btn white black-text menuButtons">Start Next Hand</button>'
   );
   $('#blindStatus').text(data.hand);
   $('#usernamesMoney').text('$' + data.money);
@@ -230,7 +218,7 @@ socket.on('endHand', function (data) {
   $('#usernameRaise').hide();
   $('#table-title').text(data.winner + ' takes the pot of $' + data.pot);
   $('#playNext').html(
-    '<button onClick=playNext() id="playNextButton" class="btn white black-text menuButtons">Start Next Game</button>'
+    '<button onClick=playNext() id="playNextButton" class="btn white black-text menuButtons">Start Next Hand</button>'
   );
   $('#blindStatus').text('');
   if (data.folded == 'Fold') {
@@ -262,7 +250,7 @@ var beginHost = function () {
     $('.toast').hide();
     $('#hostModal').closeModal();
     Materialize.toast(
-      'Enter a valid name! (max length of name is 12 characters)',
+      'Enter a valid display name. Maximum length is 12 characters.',
       4000
     );
     $('#joinButton').removeClass('disabled');
@@ -282,7 +270,7 @@ var joinRoom = function () {
   ) {
     $('.toast').hide();
     Materialize.toast(
-      'Enter a valid name/code! (max length of name is 12 characters.)',
+      'Enter a valid display name and room code. Names must be 12 characters or fewer.',
       4000
     );
     $('#joinModal').closeModal();
@@ -310,7 +298,7 @@ var bet = function () {
   if (parseInt($('#betRangeSlider').val()) == 0) {
     Materialize.toast('You must bet more than $0! Try again.', 4000);
   } else if (parseInt($('#betRangeSlider').val()) < 2) {
-    Materialize.toast('The minimum bet is $2.', 4000);
+    Materialize.toast('The minimum opening bet is $2.', 4000);
   } else {
     socket.emit('moveMade', {
       move: 'bet',
@@ -753,7 +741,7 @@ function updateBetModal() {
 
 function updateRaiseDisplay() {
   $('#raiseDisplay').html(
-    '<h3 class="center-align">Raise top bet to $' +
+      '<h3 class="center-align">Raise top bet to $' +
       $('#raiseRangeSlider').val() +
       '</h3>'
   );
@@ -773,7 +761,7 @@ function updateRaiseModal() {
 
 socket.on('displayPossibleMoves', function (data) {
   if (data.fold == 'yes') $('#usernameFold').show();
-  else $('#usernameHide').hide();
+  else $('#usernameFold').hide();
   if (data.check == 'yes') $('#usernameCheck').show();
   else $('#usernameCheck').hide();
   if (data.bet == 'yes') $('#usernameBet').show();
@@ -797,8 +785,8 @@ function renderSelf(data) {
     $('#playerInformationCard').addClass('darken-2');
     $('#usernamesCards').removeClass('white-text');
     $('#usernamesCards').addClass('black-text');
-    $('#status').text('My Turn');
-    Materialize.toast('My Turn', 4000);
+    $('#status').text('Your Turn');
+    Materialize.toast('Your turn.', 4000);
     socket.emit('evaluatePossibleMoves', {});
   } else if (data.text == 'Fold') {
     $('#status').text('You Folded');

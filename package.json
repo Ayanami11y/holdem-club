@@ -1,11 +1,21 @@
 {
-  "name": "distributed-texasholdem",
+  "name": "holdem-club",
   "version": "1.0.0",
-  "description": "distributed texas hold 'em poker made using socket.io, Node, and express",
+  "description": "Holdem Club is a realtime multiplayer Texas Hold'em MVP built with Node, Express, and socket.io.",
   "main": "index.js",
-  "repository": "https://github.com/ptwu/distributed-texasholdem.git",
-  "author": "Peter Wu <peterlingwu@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ayanami11y/holdem-club.git"
+  },
+  "author": "Ayanami11y",
   "license": "MIT",
+  "keywords": [
+    "poker",
+    "texas-holdem",
+    "multiplayer",
+    "socket.io",
+    "express"
+  ],
   "scripts": {
     "start": "node ./src/app.js",
     "dev": "nodemon ./src/app.js",

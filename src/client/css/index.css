@@ -11,50 +11,284 @@
     url("font/Metropolis-Bold.otf") format("opentype");
 }
 
-#mainContent {
-  height: 100%;
-  margin-left: 10px;
-  margin-right: 10px;
-}
-
-#gameDiv {
-  margin-left: 10px;
-  margin-right: 10px;
-  min-height: 95vh;
+:root {
+  --bg-main: #08141f;
+  --bg-surface: rgba(8, 22, 34, 0.86);
+  --bg-card: rgba(12, 31, 46, 0.92);
+  --bg-card-strong: rgba(15, 41, 61, 0.98);
+  --line-soft: rgba(154, 178, 197, 0.2);
+  --text-main: #f3f7fb;
+  --text-muted: #9db0c2;
+  --accent-gold: #f3c969;
+  --accent-green: #1f8f67;
+  --accent-blue: #4da7ff;
+  --shadow-soft: 0 20px 60px rgba(0, 0, 0, 0.32);
 }
 
 html,
-body,
-.login-box {
-  background: #2e64bc;
-  height: 95%;
-}
-
-.card {
-  margin-right: auto !important;
-  margin-left: auto !important;
+body {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(77, 167, 255, 0.2), transparent 34%),
+    radial-gradient(circle at top right, rgba(31, 143, 103, 0.18), transparent 28%),
+    linear-gradient(180deg, #0d2232 0%, #08141f 45%, #050c13 100%);
 }
 
 body {
-  font-family: Metropolis-Medium;
+  margin: 0;
+  color: var(--text-main);
+  font-family: Metropolis-Medium, sans-serif;
+}
+
+h1,
+h4,
+.card-title,
+.holdem-brand {
+  font-family: Metropolis-Bold, sans-serif;
+}
+
+.site-header {
+  position: relative;
+  z-index: 3;
+}
+
+.nav-shell {
+  background: rgba(4, 11, 17, 0.68);
+  box-shadow: none;
+  backdrop-filter: blur(16px);
+}
+
+.holdem-brand {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 1.35rem !important;
+}
+
+.nav-tagline {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--accent-gold);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.lobby-shell,
+.game-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.lobby-shell {
+  padding: 48px 0 32px;
+}
+
+.hero-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 28px;
+  align-items: stretch;
+}
+
+.hero-copy,
+.lobby-card,
+.game-card,
+.holdem-modal .modal-content,
+.holdem-modal .modal-footer {
+  background: var(--bg-surface);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.hero-copy {
+  padding: 42px;
+  border-radius: 28px;
+}
+
+.hero-copy h1 {
+  margin: 0 0 18px;
+  line-height: 1.05;
+  font-size: clamp(2.4rem, 5vw, 4.6rem);
+}
+
+.hero-text,
+.lobby-card p,
+.modal p {
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.hero-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.hero-pill {
+  padding: 10px 14px;
+  border: 1px solid rgba(243, 201, 105, 0.28);
+  border-radius: 999px;
+  background: rgba(243, 201, 105, 0.08);
+  color: #f6e2af;
+  font-size: 0.92rem;
+}
+
+.lobby-card-wrap {
+  display: flex;
+}
+
+.lobby-card {
+  width: 100%;
+  margin: 0;
+  border-radius: 28px;
+  overflow: hidden;
+  color: var(--text-main);
+}
+
+.lobby-card .card-content {
+  padding: 36px;
+}
+
+.lobby-card .card-title {
+  color: var(--text-main);
+}
+
+.lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 28px 30px !important;
+  background: rgba(5, 15, 23, 0.72) !important;
+  border-top: 1px solid var(--line-soft);
+}
+
+.lobby-primary-btn,
+.lobby-secondary-btn,
+.modal-action-btn {
+  border-radius: 999px;
+  box-shadow: none;
+  text-transform: none;
+}
+
+.lobby-primary-btn,
+.modal-action-btn {
+  background: linear-gradient(135deg, #1f8f67, #2db57f) !important;
+}
+
+.lobby-secondary-btn {
+  background: linear-gradient(135deg, #163856, #25557f) !important;
+}
+
+.lobby-steps {
+  margin-top: 28px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  color: var(--text-main);
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(77, 167, 255, 0.18);
+  color: #9fd0ff;
+  font-size: 0.95rem;
+}
+
+#gameDiv {
+  display: none;
+  padding: 28px 0 36px;
+  min-height: calc(100vh - 72px);
+}
+
+.game-heading {
+  margin-bottom: 18px;
+}
+
+.game-heading h4 {
+  margin: 0;
+}
+
+.game-card,
+.card.green.darken-2,
+.card.grey,
+.card.yellow.darken-3 {
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.game-card {
+  background: var(--bg-card);
+}
+
+.card.green.darken-2 {
+  background: linear-gradient(180deg, rgba(28, 99, 74, 0.95), rgba(20, 68, 52, 0.96)) !important;
+}
+
+.card.grey {
+  background: linear-gradient(180deg, rgba(75, 83, 91, 0.95), rgba(54, 60, 67, 0.96)) !important;
+}
+
+.card.yellow.darken-3 {
+  background: linear-gradient(180deg, rgba(228, 185, 77, 0.96), rgba(186, 143, 39, 0.96)) !important;
+}
+
+.card .card-action {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.card-content {
+  font-size: 16px;
+}
+
+.card {
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 code {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(4, 13, 20, 0.8);
+  color: #dff3ff;
   font-size: 24px;
-  background-color: #ebebeb;
 }
 
-.playingCard_black {
+.playingCard_black,
+.playingCard_red {
   float: left;
   border: 5px solid black;
   background-color: white;
-  border-radius: 5px;
+  border-radius: 8px;
   height: 135px;
   width: 90px;
-  color: black;
   padding: 5px;
   margin: 8px;
   font-size: 28px;
+}
+
+.playingCard_black {
+  color: black;
+}
+
+.playingCard_red {
+  color: red;
 }
 
 #usernamesMoney {
@@ -62,45 +296,18 @@ code {
   min-height: 219px;
 }
 
-.playingCard_red {
-  float: left;
-  border: 5px solid black;
-  background-color: white;
-  border-radius: 5px;
-  height: 135px;
-  width: 90px;
-  color: red;
-  padding: 5px;
-  margin: 8px;
-  font-size: 28px;
-}
-
 .menuButtons {
-  zoom: 0.8;
-  margin: 2px;
-}
-
-.card-content {
-  font-size: 16px;
+  margin: 4px;
+  min-width: 120px;
+  border-radius: 999px;
 }
 
 .theirTurn {
-  border: 5px solid yellow;
+  border: 5px solid var(--accent-gold);
+  box-shadow: 0 0 0 6px rgba(243, 201, 105, 0.16);
 }
 
-.playingCard_red_opponent {
-  float: left;
-  border: 5px solid black;
-  background-color: white;
-  border-radius: 5px;
-  height: 84px;
-  width: 60px;
-  color: red;
-  padding: 5px;
-  margin: 4px;
-  font-size: 18px;
-}
-
+.playingCard_red_opponent,
 .playingCard_black_opponent {
   float: left;
   border: 5px solid black;
@@ -108,20 +315,27 @@ code {
   border-radius: 5px;
   height: 84px;
   width: 60px;
-  color: black;
   padding: 5px;
   margin: 4px;
   font-size: 18px;
+}
+
+.playingCard_red_opponent {
+  color: red;
+}
+
+.playingCard_black_opponent {
+  color: black;
 }
 
 .blankCard {
   float: left;
   background: repeating-linear-gradient(
     45deg,
-    #606dbc,
-    #606dbc 10px,
-    #465298 10px,
-    #465298 20px
+    #4c657f,
+    #4c657f 10px,
+    #20354a 10px,
+    #20354a 20px
   );
   border: 5px solid black;
   border-radius: 5px;
@@ -144,7 +358,93 @@ code {
   position: absolute;
 }
 
+.holdem-modal {
+  background: transparent;
+  color: var(--text-main);
+}
+
+.holdem-modal .modal-content {
+  border-radius: 22px 22px 0 0;
+}
+
+.holdem-modal .modal-footer {
+  border-radius: 0 0 22px 22px;
+  background: rgba(5, 15, 23, 0.82);
+}
+
+.holdem-modal h4,
+.holdem-modal h5,
+.holdem-modal label,
+.holdem-modal .modal-footer a {
+  color: var(--text-main);
+}
+
+.holdem-modal input[type="text"] {
+  color: var(--text-main);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.holdem-modal input[type="text"]:focus {
+  border-bottom: 1px solid var(--accent-blue) !important;
+  box-shadow: 0 1px 0 0 var(--accent-blue) !important;
+}
+
+.holdem-modal input[type="text"]:focus + label {
+  color: var(--accent-blue) !important;
+}
+
+.site-footer {
+  background: transparent !important;
+  color: var(--text-muted);
+  padding-top: 0;
+}
+
+.footer-c {
+  padding-bottom: 22px;
+}
+
 .toast {
-  position: relative;
-  z-index: -1 !important;
+  z-index: 1003 !important;
+  border-radius: 999px;
+  background: rgba(4, 12, 18, 0.94);
+  color: var(--text-main);
+}
+
+@media only screen and (max-width: 900px) {
+  .hero-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-tagline {
+    display: none;
+  }
+
+  .hero-copy,
+  .lobby-card .card-content,
+  .lobby-actions {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  .lobby-shell,
+  .game-shell {
+    width: calc(100% - 20px);
+  }
+
+  .hero-copy h1 {
+    font-size: 2.4rem;
+  }
+
+  .menuButtons {
+    width: 100%;
+  }
+
+  .playingCard_black,
+  .playingCard_red {
+    height: 120px;
+    width: 80px;
+    font-size: 24px;
+  }
 }

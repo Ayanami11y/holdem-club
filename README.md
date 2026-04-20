@@ -1,23 +1,45 @@
-# Multiplayer Texas Hold 'Em
-[![GitHub license](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://github.com/ptwu/distributed-texasholdem/blob/master/LICENSE)
-![1.0.0](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![CI](https://github.com/ptwu/distributed-texasholdem/workflows/CI/badge.svg)
+# Holdem Club
 
-Play at https://distributed-texasholdem.onrender.com. Note that the site has to cold start because I'm a 
-college student who doesn't want to pay for anything beyond the free plan.
+Holdem Club is a lightweight realtime multiplayer Texas Hold'em web app built for quick private games with friends. One player hosts a table, shares a short room code, and everyone joins from their own browser.
 
-Using `socket.io`, `Node.js`, and `express` to make a distributed poker game. Allows for multiple
-gameplay rooms simultaneously across different devices.
+## What It Includes
 
-![Image of Distributed Texas Hold Em Gameplay](https://i.imgur.com/eGj6iHU.png)
-![Image of Distributed Texas Hold Em Lobby](https://i.imgur.com/TCusHG0.png)
+- Realtime multiplayer table flow over `socket.io`
+- Host and join room flow with a simple room code
+- Core Texas Hold'em betting rounds, blinds, community cards, and hand resolution
+- Browser-based UI served by an Express backend with static frontend assets
+- Unit tests covering core game logic
 
-## Commands
-`yarn install` installs all the dependencies required to run the webapp.
+## Tech Stack
 
-`yarn dev` starts the game with hot reloading provided by `nodemon`.
-  - The game will be viewable by navigating to `localhost:3000`.
+- Node.js
+- Express
+- socket.io
+- Static HTML, CSS, and JavaScript
+- Jest for unit tests
 
-`yarn start` runs the Node server without hot reloading. Intended for deployment use.
+## Local Development
 
-`yarn test` evaluates the unit tests located in test/classes/.
+1. Install dependencies with `npm install`.
+2. Start the app in development mode with `npm run dev`.
+3. Open `http://localhost:3000`.
+
+For a production-style run, use `npm start`.
+
+## Tests
+
+Run the game logic test suite with:
+
+```bash
+npm test
+```
+
+## Product Notes
+
+- This repository is being adapted into a standalone MVP called Holdem Club.
+- Screenshots can be added later.
+- TODO: replace the inherited favicon and social preview assets with Holdem Club-specific artwork.
+
+## Attribution
+
+This project is an adaptation of the MIT-licensed open-source multiplayer Texas Hold'em base originally published at `ptwu/distributed-texasholdem`. The original `LICENSE` is retained in this repository as required by the upstream license.
