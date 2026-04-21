@@ -1020,11 +1020,13 @@ function renderSelf(data) {
     $('#playerInformationCard').removeClass('grey');
     $('#playerInformationCard').addClass('yellow');
     $('#playerInformationCard').addClass('darken-2');
+    $('#playerInformationCard').addClass('theirTurn');
+    $('#commandCard').addClass('theirTurn');
     $('#usernamesCards').removeClass('white-text');
     $('#usernamesCards').addClass('black-text');
     $('#status').text('轮到你操作');
     $('#turnHint').text(
-      data.currentTurn ? '当前玩家：' + data.currentTurn + '（就是你）' : '轮到你操作'
+      data.currentTurn ? '当前玩家：' + data.currentTurn + ' · 轮到你操作' : '轮到你操作'
     );
     if (shouldRequestPossibleMoves(data.text)) {
       Materialize.toast('轮到你操作了。', 4000);
@@ -1036,6 +1038,8 @@ function renderSelf(data) {
     $('#playerInformationCard').removeClass('green');
     $('#playerInformationCard').removeClass('yellow');
     $('#playerInformationCard').removeClass('darken-2');
+    $('#playerInformationCard').removeClass('theirTurn');
+    $('#commandCard').removeClass('theirTurn');
     $('#playerInformationCard').addClass('grey');
     $('#usernamesCards').removeClass('black-text');
     $('#usernamesCards').addClass('white-text');
@@ -1057,6 +1061,7 @@ function renderSelf(data) {
     $('#playerInformationCard').removeClass('darken-2');
     $('#playerInformationCard').addClass('green');
     $('#playerInformationCard').removeClass('theirTurn');
+    $('#commandCard').removeClass('theirTurn');
     $('#usernameFold').hide();
     $('#usernameCheck').hide();
     $('#usernameBet').hide();

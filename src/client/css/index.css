@@ -542,6 +542,44 @@ h5,
   box-shadow: var(--shadow-strong);
 }
 
+.command-card {
+  position: relative;
+}
+
+.command-card.theirTurn {
+  border: 1px solid rgba(229, 199, 126, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(229, 199, 126, 0.3),
+    0 18px 36px rgba(0, 0, 0, 0.32),
+    0 0 32px rgba(229, 199, 126, 0.14);
+}
+
+.command-card.theirTurn .card-content {
+  background: linear-gradient(180deg, rgba(229, 199, 126, 0.12), rgba(12, 20, 14, 0.08));
+}
+
+.status-stack {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(7, 18, 23, 0.82), rgba(4, 14, 13, 0.72));
+  border: 1px solid rgba(229, 199, 126, 0.1);
+}
+
+.turn-hint {
+  min-height: 24px;
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 700;
+  color: #fff2c5;
+}
+
+.move-summary {
+  margin-top: 2px;
+}
+
 .board-header {
   display: flex;
   align-items: center;
@@ -1108,6 +1146,16 @@ code {
   #usernamesMoney {
     min-height: 40px;
     font-size: 1.5rem;
+  }
+
+  .command-card {
+    position: sticky;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    z-index: 18;
+  }
+
+  .command-card .card-content {
+    padding: 14px 14px 16px;
   }
 
   .action-stack {
