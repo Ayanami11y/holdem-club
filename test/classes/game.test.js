@@ -1,4 +1,5 @@
 const Game = require('../../src/classes/game.js');
+const Card = require('../../src/classes/card.js');
 const events = require('events');
 
 test('Test call until fold then check', () => {
@@ -11,6 +12,10 @@ test('Test call until fold then check', () => {
   sock1.id = 1;
   const sock2 = new events.EventEmitter();
   sock2.id = 2;
+  let rerenderPayload;
+  sock1.on('rerender', (data) => {
+    rerenderPayload = data;
+  });
 
   const p1 = game.addPlayer("1", sock1);
   expect(p1.money).toBe(100);
@@ -40,6 +45,8 @@ test('Test call until fold then check', () => {
   // Pre-Flop
   game.call(smallPlayer.socket);
   expect(game.roundNum).toBe(1);
+  expect(game.roundData.turn).toBe(bigPlayer.getUsername());
+  expect(rerenderPayload.currentTurn).toBe(bigPlayer.getUsername());
   expect(game.roundData.bets.length).toBe(1);
 
   // Flop
@@ -162,6 +169,39 @@ test('Test bet more than possessed', () => {
   expect(game.bet(bigPlayer.socket, 1000)).not.toBe(true);
 });
 
+test('Pre-flop does not deadlock when Big Blind is all-in from forced blind', () => {
+  const game = new Game('best-game', '1');
+  game.smallBlind = 5;
+  game.bigBlind = 10;
+
+  const sock1 = new events.EventEmitter();
+  sock1.id = 1;
+  const sock2 = new events.EventEmitter();
+  sock2.id = 2;
+
+  const p1 = game.addPlayer('1', sock1);
+  game.addPlayer('2', sock2);
+
+  // With 2 players in this implementation, player[0] becomes Big Blind in round 1.
+  // Make the Big Blind short-stacked so the forced blind posts them all-in.
+  p1.money = 5;
+
+  game.startGame();
+
+  const smallPlayer = game.players[game.roundData.smallBlind];
+  const bigPlayer = game.players[game.roundData.bigBlind];
+
+  expect(bigPlayer.getUsername()).toBe('1');
+  expect(bigPlayer.money).toBe(0);
+  expect(bigPlayer.allIn).toBe(true);
+
+  // Small blind is already matched (5). Calling should not deadlock.
+  // Since the Big Blind is all-in, the game may fast-forward the whole board.
+  expect(game.call(smallPlayer.socket)).toBe(true);
+  expect(game.roundData.bets.length).toBe(4); // auto-advanced to River
+  expect(game.community.length).toBe(5);
+});
+
 test('Test all-in / call', () => {
   const game = new Game('best-game', '1');
   game.smallBlind = 5;
@@ -212,6 +252,46 @@ test('Test all-in / call', () => {
   expect(game.call(smallPlayer.socket)).toBe(true);
 
   expect(smallPlayer.money + bigPlayer.money).toBe(150);
+});
+
+test('Test fold advances turn to the previous active player', () => {
+  const game = new Game('best-game', '1');
+  game.smallBlind = 5;
+  game.bigBlind = 10;
+
+  const sock1 = new events.EventEmitter();
+  sock1.id = 1;
+  const sock2 = new events.EventEmitter();
+  sock2.id = 2;
+  const sock3 = new events.EventEmitter();
+  sock3.id = 3;
+
+  game.addPlayer('1', sock1);
+  game.addPlayer('2', sock2);
+  game.addPlayer('3', sock3);
+  game.startGame();
+
+  const currentTurn = game.roundData.turn;
+  expect(currentTurn).toBe(game.players[game.roundData.smallBlind].getUsername());
+
+  const currentTurnPlayer = game.players.find(
+    (p) => p.getUsername() === currentTurn
+  );
+  const expectedNextTurn = (() => {
+    let idx = game.players.findIndex((p) => p.getUsername() === currentTurn);
+    let attempts = 0;
+    do {
+      idx = idx - 1 < 0 ? game.players.length - 1 : idx - 1;
+      attempts += 1;
+    } while (
+      (game.players[idx].getStatus() === 'Fold' || game.players[idx].allIn) &&
+      attempts < game.players.length * 2
+    );
+    return game.players[idx].getUsername();
+  })();
+
+  expect(game.fold(currentTurnPlayer.socket)).toBe(true);
+  expect(game.roundData.turn).toBe(expectedNextTurn);
 });
 
 test('Test all-in 3 players', () => {
@@ -871,7 +951,8 @@ test('Test infinite loop issue', () => {
 
   for (const [index, pl] of Object.entries(playersData)) {
     const p = players[Number(index)];
-    p.cards = [...pl.cards];
+    // Game logic expects Card instances (with getValue/getSuit).
+    p.cards = pl.cards.map((c) => new Card(c.value, c.suit));
   }
 
   expect(game.roundNum).toBe(1);

@@ -14,6 +14,41 @@ app.use('/', express.static(__dirname + '/client'));
 
 let rooms = [];
 
+const findGameBySocketId = (socketId) =>
+  rooms.find((r) => r.findPlayer(socketId).socket.id === socketId);
+
+const sanitizeRoomSettings = (settings) => {
+  const incoming = settings || {};
+  const smallBlindRaw = Number(incoming.smallBlind);
+  const bigBlindRaw = Number(incoming.bigBlind);
+  const startingStackRaw = Number(incoming.startingStack);
+  const autoRebuyStackRaw = Number(incoming.autoRebuyStack);
+  const smallBlind = Number.isFinite(smallBlindRaw)
+    ? Math.max(1, Math.min(1000, Math.floor(smallBlindRaw)))
+    : 1;
+  const bigBlind = Number.isFinite(bigBlindRaw)
+    ? Math.max(smallBlind + 1, Math.min(2000, Math.floor(bigBlindRaw)))
+    : Math.max(2, smallBlind * 2);
+  const minStack = bigBlind * 10;
+  const startingStack = Number.isFinite(startingStackRaw)
+    ? Math.max(minStack, Math.min(50000, Math.floor(startingStackRaw)))
+    : 100;
+  const autoRebuy =
+    typeof incoming.autoRebuy === 'boolean' ? incoming.autoRebuy : true;
+  const autoRebuyStack = Number.isFinite(autoRebuyStackRaw)
+    ? Math.max(minStack, Math.min(50000, Math.floor(autoRebuyStackRaw)))
+    : startingStack;
+
+  return {
+    blinds: { small: smallBlind, big: bigBlind },
+    buyIn: {
+      startingStack: startingStack,
+      autoRebuy: autoRebuy,
+      autoRebuyStack: autoRebuy ? autoRebuyStack : startingStack,
+    },
+  };
+};
+
 io.on('connection', (socket) => {
   console.log('new connection ', socket.id);
   socket.on('host', (data) => {
@@ -30,12 +65,10 @@ io.on('connection', (socket) => {
           Math.floor(Math.random() * 10);
       } while (rooms.length != 0 && rooms.some((r) => r.getCode() === code));
       const game = new Game(code, data.username);
+      game.configureSettings(sanitizeRoomSettings(data.settings));
       rooms.push(game);
       game.addPlayer(data.username, socket);
-      game.emitPlayers('hostRoom', {
-        code: code,
-        players: game.getPlayersArray(),
-      });
+      game.emitPlayers('hostRoom', game.getRoomState());
     }
   });
 
@@ -51,20 +84,14 @@ io.on('connection', (socket) => {
     } else {
       game.addPlayer(data.username, socket);
       rooms = rooms.map((r) => (r.getCode() === data.code ? game : r));
-      game.emitPlayers('joinRoom', {
-        host: game.getHostName(),
-        players: game.getPlayersArray(),
-      });
-      game.emitPlayers('hostRoom', {
-        code: data.code,
-        players: game.getPlayersArray(),
-      });
+      game.emitPlayers('joinRoom', game.getRoomState());
+      game.emitPlayers('hostRoom', game.getRoomState());
     }
   });
 
   socket.on('startGame', (data) => {
     const game = rooms.find((r) => r.getCode() == data.code);
-    if (game == undefined) {
+    if (game == undefined || !game.isHostSocket(socket.id) || !game.canStartGame()) {
       socket.emit('gameBegin', undefined);
     } else {
       game.emitPlayers('gameBegin', { code: data.code });
@@ -76,6 +103,7 @@ io.on('connection', (socket) => {
     const game = rooms.find(
       (r) => r.findPlayer(socket.id).socket.id === socket.id
     );
+    if (!game) return;
     if (game.roundInProgress) {
       const possibleMoves = game.getPossibleMoves(socket);
       socket.emit('displayPossibleMoves', possibleMoves);
@@ -83,9 +111,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('raiseModalData', () => {
-    const game = rooms.find(
-      (r) => r.findPlayer(socket.id).socket.id === socket.id
-    );
+    const game = findGameBySocketId(socket.id);
     if (game != undefined) {
       socket.emit('updateRaiseModal', {
         topBet: game.getCurrentTopBet(),
@@ -97,9 +123,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('startNextRound', () => {
-    const game = rooms.find(
-      (r) => r.findPlayer(socket.id).socket.id === socket.id
-    );
+    const game = findGameBySocketId(socket.id);
     if (game != undefined) {
       if (game.roundInProgress === false) {
         game.startNewRound();
@@ -110,9 +134,7 @@ io.on('connection', (socket) => {
   // precondition: user must be able to make the move in the first place.
   socket.on('moveMade', (data) => {
     // worst case complexity O(num_rooms * num_players_in_room)
-    const game = rooms.find(
-      (r) => r.findPlayer(socket.id).socket.id === socket.id
-    );
+    const game = findGameBySocketId(socket.id);
 
     if (game != undefined) {
       if (data.move == 'fold') {
@@ -132,9 +154,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    const game = rooms.find(
-      (r) => r.findPlayer(socket.id).socket.id === socket.id
-    );
+    const game = findGameBySocketId(socket.id);
     if (game != undefined) {
       const player = game.findPlayer(socket.id);
       game.disconnectPlayer(player);

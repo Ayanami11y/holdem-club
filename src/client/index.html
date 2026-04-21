@@ -1,8 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet" />
   <link href="css/materialize.min.css" type="text/css" rel="stylesheet" media="screen,projection" />
   <link href="css/index.css" type="text/css" rel="stylesheet" media="screen,projection" />
   <meta property="og:image" content="./img/pokerBanner.png" />
@@ -10,28 +13,36 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
   <link rel="manifest" href="/site.webmanifest" />
-  <meta name="msapplication-TileColor" content="#08141f" />
-  <meta name="theme-color" content="#08141f" />
-  <title>Holdem Club | Multiplayer Texas Hold'em</title>
+  <meta name="msapplication-TileColor" content="#102117" />
+  <meta name="theme-color" content="#102117" />
+  <title>River Club | 多人德州扑克</title>
 </head>
 <body>
+  <div class="page-backdrop"></div>
+
   <header id="siteHeader" class="site-header">
     <nav role="navigation" id="navbar" class="nav-shell">
-      <div class="nav-wrapper container">
-        <span class="brand-logo left holdem-brand">Holdem Club</span>
-        <span class="right nav-tagline">Private multiplayer Texas Hold'em</span>
+      <div class="nav-wrapper container nav-inner">
+        <div class="brand-stack">
+          <span class="brand-logo left holdem-brand">River Club</span>
+        </div>
+        <span class="right nav-tagline">房码组局 · 浏览器即开局</span>
       </div>
     </nav>
   </header>
 
   <div id="gameDiv" class="game-shell">
-    <div class="game-heading">
-      <p class="eyebrow">Live Table</p>
-      <h4>Holdem Club Table</h4>
-    </div>
-    <div class="row">
+    <section class="game-overview">
+      <div class="game-heading">
+        <p class="eyebrow">实时牌桌</p>
+        <h4>River Club 牌桌</h4>
+        <p class="game-subtitle">一张牌桌、一个房码、所有玩家实时同步。</p>
+      </div>
+    </section>
+
+    <div class="row table-grid table-grid-top">
       <div class="col s12 m3">
-        <div id="playerInformationCard" class="card game-card green darken-2">
+        <div id="playerInformationCard" class="card game-card player-focus-card green darken-2">
           <div class="card-content white-text">
             <span class="card-title" id="usernamesCards"></span>
             <div id="mycards"></div>
@@ -39,35 +50,54 @@
         </div>
       </div>
       <div class="col s12 m2">
-        <div class="card game-card green darken-2">
+        <div class="card game-card command-card green darken-2">
           <div class="card-content white-text center-align">
             <span class="card-title center-align" id="usernamesMoney"></span>
-            <div id="blindStatus"></div>
-            <div id="status"></div>
-            <br />
+            <div class="status-stack">
+              <div id="blindStatus"></div>
+              <div id="status"></div>
+              <div id="turnHint" class="turn-hint"></div>
+              <div class="table-metrics" id="tableMetrics">
+                <div class="metric-chip">
+                  <span class="metric-label">阶段</span>
+                  <strong class="metric-value" id="stageStatus">—</strong>
+                </div>
+                <div class="metric-chip">
+                  <span class="metric-label">底池</span>
+                  <strong class="metric-value" id="potStatus">$0</strong>
+                </div>
+                <div class="metric-chip">
+                  <span class="metric-label">顶注</span>
+                  <strong class="metric-value" id="topBetStatus">$0</strong>
+                </div>
+              </div>
+              <div id="moveSummary" class="move-summary"></div>
+            </div>
             <div id="playNext"></div>
-            <button onClick="fold()" id="usernameFold" class="btn white black-text menuButtons">Fold</button>
-            <br />
-            <button onClick="check()" id="usernameCheck" class="btn white black-text menuButtons">Check</button>
-            <br />
-            <button href="#betModal" onClick="updateBetModal()" id="usernameBet" class="btn white black-text modal-trigger menuButtons">Bet</button>
-            <br />
-            <button onClick="call()" id="usernameCall" class="btn white black-text menuButtons">Call</button>
-            <br />
-            <button href="#raiseModal" onClick="updateRaiseModal()" id="usernameRaise" class="btn white black-text modal-trigger menuButtons">Raise</button>
+            <div class="action-stack">
+              <button onClick="fold()" id="usernameFold" class="btn white black-text menuButtons">弃牌</button>
+              <button onClick="check()" id="usernameCheck" class="btn white black-text menuButtons">过牌</button>
+              <button href="#betModal" onClick="updateBetModal()" id="usernameBet" class="btn white black-text modal-trigger menuButtons">下注</button>
+              <button onClick="call()" id="usernameCall" class="btn white black-text menuButtons">跟注</button>
+              <button href="#raiseModal" onClick="updateRaiseModal()" id="usernameRaise" class="btn white black-text modal-trigger menuButtons">加注</button>
+            </div>
           </div>
         </div>
       </div>
       <div class="col s12 m7">
-        <div class="card game-card green darken-2">
+        <div class="card game-card board-card green darken-2">
           <div class="card-content white-text">
-            <span id="table-title" class="card-title"></span>
+            <div class="board-header">
+              <span id="table-title" class="card-title"></span>
+              <span class="board-chip">公共牌面</span>
+            </div>
             <div id="communityCards"></div>
           </div>
         </div>
       </div>
     </div>
-    <div class="row">
+
+    <div class="row table-grid table-grid-opponents">
       <div id="opponentCards"></div>
     </div>
   </div>
@@ -75,40 +105,50 @@
   <main id="mainContent" class="lobby-shell">
     <section class="hero-panel">
       <div class="hero-copy">
-        <p class="eyebrow">Realtime Browser Poker</p>
-        <h1>Host a table, share the code, and deal in.</h1>
+        <p class="eyebrow">浏览器牌局</p>
+        <h1>多人德州扑克，浏览器里直接开局。</h1>
         <p class="hero-text">
-          Holdem Club keeps the setup lightweight: one player opens a room, friends join from any browser, and the game runs live over a shared table state.
+          流程压到很轻：一个人建房，发出房码，朋友用任意浏览器加入，整桌状态实时同步。
+          没有复杂安装，没有账号门槛，直接开一局。
         </p>
         <div class="hero-points">
-          <span class="hero-pill">Room code join flow</span>
-          <span class="hero-pill">Private multiplayer table</span>
-          <span class="hero-pill">Fast host start</span>
+          <span class="hero-pill">房码加入</span>
+          <span class="hero-pill">好友牌桌</span>
+          <span class="hero-pill">房主快速开局</span>
+          <span class="hero-pill">手机电脑都能玩</span>
         </div>
       </div>
+
       <div class="lobby-card-wrap">
         <div class="card hoverable lobby-card">
           <div class="card-content">
-            <span class="card-title">Start a session</span>
-            <p>Create a room if you are running the table, or enter a code from your host to join an existing game.</p>
+            <div class="lobby-card-topline">
+              <span class="table-badge">今晚牌局</span>
+              <span class="table-badge subtle">River Club</span>
+            </div>
+            <span class="card-title">开始一局</span>
+            <p>如果你是房主就创建房间；如果你是玩家，就输入房主发来的房码加入现有牌局。</p>
+            <div class="lobby-room-panel-wrap">
+              <div id="lobbyRoomPanel"></div>
+            </div>
             <div class="lobby-steps">
               <div class="step-item">
                 <span class="step-number">1</span>
-                <span>Choose host or join.</span>
+                <span>选择建房或加入。</span>
               </div>
               <div class="step-item">
                 <span class="step-number">2</span>
-                <span>Use a display name up to 12 characters.</span>
+                <span>输入一个不超过 12 个字符的昵称。</span>
               </div>
               <div class="step-item">
                 <span class="step-number">3</span>
-                <span>Wait in the room until the host starts the hand.</span>
+                <span>进入房间后等待房主开始本局。</span>
               </div>
             </div>
           </div>
           <div class="card-action center-align lobby-actions">
-            <a id="hostButton" class="btn-large waves-effect waves-light modal-trigger lobby-primary-btn" href="#hostModal">Host Table</a>
-            <a id="joinButton" class="btn-large waves-effect waves-light modal-trigger lobby-secondary-btn" href="#joinModal">Join With Code</a>
+            <a id="hostButton" class="btn-large waves-effect waves-light modal-trigger lobby-primary-btn" href="#hostModal">创建牌桌</a>
+            <a id="joinButton" class="btn-large waves-effect waves-light modal-trigger lobby-secondary-btn" href="#joinModal">输入房码加入</a>
           </div>
         </div>
       </div>
@@ -117,92 +157,118 @@
 
   <div id="hostModal" class="modal holdem-modal">
     <div class="modal-content">
-      <h4>Host a Table</h4>
+      <h4>创建牌桌</h4>
       <div id="hostModalContent">
-        <p>Enter your display name, then share the generated room code with the rest of your players.</p>
+        <p>先输入你的昵称，然后把生成的房码发给其他玩家。</p>
         <div class="input-field col s12">
-          <label for="name">Display name</label>
+          <label for="name">昵称</label>
           <input type="text" name="name" id="hostName-field" required />
         </div>
-        <button onclick="beginHost()" type="submit" class="waves-effect waves-light btn-flat modal-action-btn">Create Room Code</button>
+        <div class="room-settings-form">
+          <h5>房主设置</h5>
+          <div class="input-field col s6">
+            <label class="active" for="smallBlind-field">小盲</label>
+            <input type="number" min="1" step="1" id="smallBlind-field" value="1" />
+          </div>
+          <div class="input-field col s6">
+            <label class="active" for="bigBlind-field">大盲</label>
+            <input type="number" min="2" step="1" id="bigBlind-field" value="2" />
+          </div>
+          <div class="input-field col s6">
+            <label class="active" for="startingStack-field">起始筹码</label>
+            <input type="number" min="100" step="10" id="startingStack-field" value="100" />
+          </div>
+          <div class="input-field col s6">
+            <label class="active" for="autoRebuyStack-field">自动补码目标</label>
+            <input type="number" min="100" step="10" id="autoRebuyStack-field" value="100" />
+          </div>
+          <p class="room-settings-toggle">
+            <input type="checkbox" id="autoRebuy-field" checked="checked" />
+            <label for="autoRebuy-field">自动补码</label>
+          </p>
+        </div>
+        <button onclick="beginHost()" type="submit" class="waves-effect waves-light btn-flat modal-action-btn">生成房码</button>
       </div>
       <div id="playersNames"></div>
       <div id="startGameArea"></div>
     </div>
     <div class="modal-footer">
-      <a class="modal-close waves-effect waves-light btn-flat">Close</a>
+      <a class="modal-close waves-effect waves-light btn-flat">关闭</a>
     </div>
   </div>
 
   <div id="joinModal" class="modal holdem-modal">
     <div class="modal-content">
-      <h4>Join a Table</h4>
+      <h4>加入牌桌</h4>
       <div id="joinModalContent">
-        <p>Enter your display name and the 4-digit room code provided by your host.</p>
+        <p>输入你的昵称，以及房主给你的 4 位房码。</p>
         <div class="input-field col s12">
-          <label for="name">Display name</label>
+          <label for="name">昵称</label>
           <input type="text" name="name" id="joinName-field" required="required" />
         </div>
         <div class="input-field col s12">
-          <label for="code">Room code</label>
+          <label for="code">房码</label>
           <input type="text" name="code" id="code-field" required="required" />
         </div>
-        <button onclick="joinRoom()" type="submit" class="waves-effect waves-light btn-flat modal-action-btn">Join Table</button>
+        <button onclick="joinRoom()" type="submit" class="waves-effect waves-light btn-flat modal-action-btn">加入牌桌</button>
       </div>
       <div id="playersNamesJoined"></div>
       <div id="startGameAreaDisconnectSituation"></div>
     </div>
     <div class="modal-footer">
-      <a href="#!" class="modal-close waves-effect waves-light btn-flat">Close</a>
+      <a href="#!" class="modal-close waves-effect waves-light btn-flat">关闭</a>
     </div>
   </div>
 
   <div id="betModal" class="modal holdem-modal">
     <div class="modal-content">
-      <h4>Bet</h4>
+      <h4>下注</h4>
       <form action="#">
         <div id="betDisplay">
-          <h4>Drag the slider to place your bet.</h4>
+          <h4>拖动滑块设置下注金额。</h4>
         </div>
         <p class="range-field">
           <input type="range" id="betRangeSlider" min="0" max="100" value="0" onchange="updateBetDisplay()" oninput="updateBetDisplay()" />
         </p>
       </form>
       <br />
-      <button onclick="bet()" type="submit" class="modal-close waves-effect waves-light btn-flat modal-action-btn">Confirm Bet</button>
+      <button onclick="bet()" type="submit" class="modal-close waves-effect waves-light btn-flat modal-action-btn">确认下注</button>
     </div>
     <div class="modal-footer">
-      <a href="#!" class="modal-close waves-effect waves-light btn-flat">Close</a>
+      <a href="#!" class="modal-close waves-effect waves-light btn-flat">关闭</a>
     </div>
   </div>
 
   <div id="raiseModal" class="modal holdem-modal">
     <div class="modal-content">
-      <h4>Raise</h4>
+      <h4>加注</h4>
       <form action="#">
         <div id="raiseDisplay">
-          <h4>Drag the slider to raise the current top bet.</h4>
+          <h4>拖动滑块把当前顶注抬高。</h4>
         </div>
+        <p id="raiseHelpText" class="modal-help-text">最小加注会按桌面大盲注起跳。</p>
         <p class="range-field">
           <input type="range" id="raiseRangeSlider" min="0" max="100" value="0" onchange="updateRaiseDisplay()" />
         </p>
       </form>
       <br />
-      <button onclick="raise()" type="submit" class="modal-close waves-effect waves-light btn-flat modal-action-btn">Confirm Raise</button>
+      <button onclick="raise()" type="submit" class="modal-close waves-effect waves-light btn-flat modal-action-btn">确认加注</button>
     </div>
     <div class="modal-footer">
-      <a href="#!" class="modal-close waves-effect waves-light btn-flat">Close</a>
+      <a href="#!" class="modal-close waves-effect waves-light btn-flat">关闭</a>
     </div>
   </div>
 
   <footer class="page-footer site-footer">
     <div class="container footer-c">
-      <b>Holdem Club</b><br /><br />
+      <b>River Club</b><br /><br />
+      房码多人德州扑克
     </div>
   </footer>
 
   <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.5.0/socket.io.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./lobby_ui.js"></script>
   <script src="./main.js"></script>
   <script src="./js/materialize.min.js"></script>
 </body>

@@ -1,11 +1,156 @@
+var modalScrollTop = 0;
+
+function setModalScrollLock(locked) {
+  var $body = $('body');
+  if (locked) {
+    modalScrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+    $body.addClass('modal-open');
+    $body.css({ top: -modalScrollTop + 'px' });
+  } else {
+    $body.removeClass('modal-open');
+    $body.css({ top: '' });
+    window.scrollTo(0, modalScrollTop);
+  }
+}
+
+function closeModalAndUnlock(selector) {
+  var $modal = $(selector);
+  if ($modal.length) {
+    if (typeof $modal.closeModal === 'function') {
+      $modal.closeModal();
+    } else {
+      $modal.hide();
+    }
+  }
+  window.setTimeout(function () {
+    setModalScrollLock(false);
+  }, 350);
+}
+
 $(document).ready(function () {
   $('#gameDiv').hide();
-  $('.modal-trigger').leanModal();
+  $('.modal-trigger').leanModal({
+    ready: function () {
+      setModalScrollLock(true);
+    },
+    complete: function () {
+      setModalScrollLock(false);
+    }
+  });
   $('.tooltipped').tooltip({ delay: 50 });
 });
 
 var socket = io();
 var gameInfo = null;
+var roomSettings = {
+  blinds: { small: 1, big: 2 },
+  buyIn: { startingStack: 100, autoRebuy: true, autoRebuyStack: 100 },
+};
+var lastCommunityMarkup = '';
+var lastOpponentMarkup = '';
+var lastSelfTurnState = null;
+var lastPossibleMoves = null;
+var lastLobbyPlayers = null;
+var lastLobbyRoomState = null;
+
+function getHostSettingsFormValues() {
+  return {
+    smallBlind: parseInt($('#smallBlind-field').val(), 10) || 1,
+    bigBlind: parseInt($('#bigBlind-field').val(), 10) || 2,
+    startingStack: parseInt($('#startingStack-field').val(), 10) || 100,
+    autoRebuy: $('#autoRebuy-field').is(':checked'),
+    autoRebuyStack: parseInt($('#autoRebuyStack-field').val(), 10) || 100,
+  };
+}
+
+function applyRoomSettings(settings) {
+  if (!settings) return;
+  roomSettings = settings;
+}
+
+function syncLobbyRoomPanel(data) {
+  if (!data) return;
+  if (typeof mergeLobbyRoomState === 'function') {
+    lastLobbyRoomState = mergeLobbyRoomState(lastLobbyRoomState, data);
+  } else {
+    lastLobbyRoomState = Object.assign({}, lastLobbyRoomState || {}, data);
+  }
+  if (typeof renderLobbyRoomPanel !== 'function') return;
+  var $panel = $('#lobbyRoomPanel');
+  if ($panel.length) {
+    $panel.html(renderLobbyRoomPanel(lastLobbyRoomState, { previousPlayers: lastLobbyPlayers }));
+  }
+  lastLobbyPlayers = Array.isArray(lastLobbyRoomState && lastLobbyRoomState.players)
+    ? lastLobbyRoomState.players.slice()
+    : null;
+}
+
+function renderRoomSettings(settings) {
+  if (!settings) return '';
+  return (
+    '<div class="room-settings-summary">' +
+    '<p><b>盲注：</b>$' + settings.blinds.small + ' / $' + settings.blinds.big + '</p>' +
+    '<p><b>起始筹码：</b>$' + settings.buyIn.startingStack + '</p>' +
+    '<p><b>自动补码：</b>' + (settings.buyIn.autoRebuy ? '开启' : '关闭') + '</p>' +
+    (settings.buyIn.autoRebuy
+      ? '<p><b>补码目标：</b>$' + settings.buyIn.autoRebuyStack + '</p>'
+      : '') +
+    '</div>'
+  );
+}
+
+function translateStatus(status) {
+  var map = {
+    'Their Turn': '等待操作',
+    'Fold': '已弃牌',
+    'Check': '过牌',
+    'Call': '跟注',
+    'Buy-in': '补码'
+  };
+  return map[status] || status;
+}
+
+function translateBlind(blind) {
+  var map = {
+    'Big Blind': '大盲',
+    'Small Blind': '小盲'
+  };
+  return map[blind] || blind;
+}
+
+function translateStage(stage) {
+  var map = {
+    'Pre-Flop': '翻牌前',
+    'Flop': '翻牌',
+    'Turn': '转牌',
+    'River': '河牌'
+  };
+  return map[stage] || stage;
+}
+
+function formatBuyIns(count) {
+  if (!count || count <= 0) return '';
+  return count + ' 次补码';
+}
+
+function formatOpponentAction(text, isChecked, bet) {
+  if (text == 'Fold') return '已弃牌';
+  if (isChecked) return '过牌';
+  if (bet && bet !== 'Fold' && bet !== 'Call' && bet !== 'Check' && bet !== 'Buy-in') {
+    return '下注：$' + bet;
+  }
+  return translateStatus(text);
+}
+
+function formatSelfCardTitle(username, myBet) {
+  if (myBet == 0) return username + '｜手牌';
+  return username + '｜当前下注：$' + myBet;
+}
+
+function formatBuyInSummary(count) {
+  if (!count || count <= 0) return '';
+  return '（' + formatBuyIns(count) + '）';
+}
 
 function renderPlayersList(players) {
   return players
@@ -26,37 +171,43 @@ function renderStartButton(code, label) {
 }
 
 socket.on('playerDisconnected', function (data) {
-  Materialize.toast(data.player + ' left the table.', 4000);
+  Materialize.toast(data.player + ' 离开了牌桌。', 4000);
 });
 
 socket.on('hostRoom', function (data) {
   if (data != undefined) {
+    applyRoomSettings(data.settings);
+    syncLobbyRoomPanel(data);
+    var settingsMarkup = renderRoomSettings(data.settings);
     if (data.players.length >= 11) {
       $('#hostModalContent').html(
-        '<h5>Room code</h5><code>' +
+        '<h5>房码</h5><code>' +
           data.code +
-          '</code><br /><h5>Table is full. Maximum seats: 11 players.</h5><h5>Players in this room</h5>'
+          '</code><br /><h5>牌桌已满，最多支持 11 人。</h5><h5>房间玩家</h5>' +
+          settingsMarkup
       );
       $('#playersNames').html(renderPlayersList(data.players));
     } else if (data.players.length > 1) {
       $('#hostModalContent').html(
-        '<h5>Room code</h5><code>' +
+        '<h5>房码</h5><code>' +
           data.code +
-          '</code><br /><h5>Players in this room</h5><p>Everyone is in. Start the table when you are ready.</p>'
+          '</code><br /><h5>房间玩家</h5><p>人到齐了，准备好就可以开始牌局。</p>' +
+          settingsMarkup
       );
       $('#playersNames').html(renderPlayersList(data.players));
-      $('#startGameArea').html(renderStartButton(data.code, 'Start Table'));
+      $('#startGameArea').html(renderStartButton(data.code, '开始牌局'));
     } else {
       $('#hostModalContent').html(
-        '<h5>Room code</h5><code>' +
+        '<h5>房码</h5><code>' +
           data.code +
-          '</code><br /><h5>Players in this room</h5><p>Share this code with your group. You need at least one more player to start.</p>'
+          '</code><br /><h5>房间玩家</h5><p>把这个房码发给朋友。至少还需要 1 名玩家才能开始。</p>' +
+          settingsMarkup
       );
       $('#playersNames').html(renderPlayersList(data.players));
     }
   } else {
     Materialize.toast(
-      'Enter a valid display name. Maximum length is 12 characters.',
+      '请输入有效昵称，最多 12 个字符。',
       4000
     );
     $('#joinButton').removeClass('disabled');
@@ -64,6 +215,7 @@ socket.on('hostRoom', function (data) {
 });
 
 socket.on('hostRoomUpdate', function (data) {
+  syncLobbyRoomPanel(data);
   $('#playersNames').html(renderPlayersList(data.players));
   if (data.players.length == 1) {
     $('#startGameArea').empty();
@@ -71,13 +223,16 @@ socket.on('hostRoomUpdate', function (data) {
 });
 
 socket.on('joinRoomUpdate', function (data) {
+  applyRoomSettings(data.settings);
+  syncLobbyRoomPanel(data);
   $('#startGameAreaDisconnectSituation').html(
-    renderStartButton(data.code, 'Start Table')
+    renderStartButton(data.code, '开始牌局')
   );
   $('#joinModalContent').html(
     '<h5>' +
       data.host +
-      '\'s table</h5><hr /><h5>Players in this room</h5><p>You are now the host for this table.</p>'
+      ' 的牌桌</h5><hr /><h5>房间玩家</h5><p>你现在是这张牌桌的房主。</p>' +
+      renderRoomSettings(data.settings)
   );
 
   $('#playersNamesJoined').html(renderPlayersList(data.players));
@@ -85,17 +240,20 @@ socket.on('joinRoomUpdate', function (data) {
 
 socket.on('joinRoom', function (data) {
   if (data == undefined) {
-    $('#joinModal').closeModal();
+    closeModalAndUnlock('#joinModal');
     Materialize.toast(
-      'Enter a valid display name and room code. Names must be unique at the table and 12 characters or fewer.',
+      '请输入有效昵称和房码。昵称需在当前牌桌内唯一，且不超过 12 个字符。',
       4000
     );
     $('#hostButton').removeClass('disabled');
   } else {
+    applyRoomSettings(data.settings);
+    syncLobbyRoomPanel(data);
     $('#joinModalContent').html(
       '<h5>' +
         data.host +
-        '\'s table</h5><hr /><h5>Players in this room</h5><p>Wait for the host to start. Leaving, refreshing, or going back will disconnect you from the table.</p>'
+        ' 的牌桌</h5><hr /><h5>房间玩家</h5><p>请等待房主开始牌局。离开、刷新或返回页面都会让你断开连接。</p>' +
+        renderRoomSettings(data.settings)
     );
     $('#playersNamesJoined').html(renderPlayersList(data.players));
   }
@@ -107,53 +265,117 @@ socket.on('dealt', function (data) {
       return renderCard(c);
     })
   );
-  $('#usernamesCards').text(data.username + ' | Hole Cards');
+  $('#usernamesCards').text(formatSelfCardTitle(data.username, 0));
   $('#mainContent').remove();
 });
 
-socket.on('rerender', function (data) {
-  if (data.myBet == 0) {
-    $('#usernamesCards').text(data.username + ' | Hole Cards');
-  } else {
-    $('#usernamesCards').text(data.username + ' | Current Bet: $' + data.myBet);
+// --- Render scheduling (mobile perf): coalesce rapid server rerenders into one frame ---
+var rerenderScheduled = false;
+var pendingRerenderData = null;
+
+function buildBetByPlayerMap(bets) {
+  var lastStage = bets && bets.length ? bets[bets.length - 1] : [];
+  var map = Object.create(null);
+  for (var i = 0; i < lastStage.length; i++) {
+    map[lastStage[i].player] = lastStage[i].bet;
   }
-  if (data.community != undefined)
-    $('#communityCards').html(
-      data.community.map(function (c) {
-        return renderCard(c);
-      })
+  return map;
+}
+
+function formatMoneyChip(value) {
+  return '$' + (value == undefined ? 0 : value);
+}
+
+function renderPossibleMovesSummary(data) {
+  var pills = [];
+  if (!data) {
+    $('#moveSummary').empty();
+    return;
+  }
+
+  if (data.fold == 'yes') pills.push('<span class="move-pill is-muted">弃牌</span>');
+  if (data.check == 'yes') pills.push('<span class="move-pill is-muted">过牌</span>');
+  if (data.bet == 'yes') pills.push('<span class="move-pill is-prominent">下注</span>');
+  if (data.call != 'no') {
+    pills.push(
+      '<span class="move-pill is-prominent">' +
+        (data.call == 'all-in' ? '跟注全下' : '跟注 $' + data.call) +
+        '</span>'
     );
-  else $('#communityCards').html('<p></p>');
+  }
+  if (data.raise == 'yes') pills.push('<span class="move-pill is-prominent">加注</span>');
+
+  $('#moveSummary').html(
+    pills.length ? '<b>可选动作：</b>' + pills.join('') : '<span class="move-pill is-muted">暂时没有可用动作</span>'
+  );
+}
+
+function updateTableMetrics(data) {
+  $('#stageStatus').text(translateStage(data.stage || '')); 
+  $('#potStatus').text(formatMoneyChip(data.pot));
+  $('#topBetStatus').text(formatMoneyChip(data.topBet));
+}
+
+function doRerender(data) {
+  if (!data) return;
+
+  if (data.myBet == 0) {
+    $('#usernamesCards').text(formatSelfCardTitle(data.username, 0));
+  } else {
+    $('#usernamesCards').text(formatSelfCardTitle(data.username, data.myBet));
+  }
+
+  var communityMarkup = data.community != undefined
+    ? data.community.map(function (c) {
+        return renderCard(c);
+      }).join('')
+    : '<p></p>';
+  if (communityMarkup !== lastCommunityMarkup) {
+    $('#communityCards').html(communityMarkup);
+    lastCommunityMarkup = communityMarkup;
+  }
+
   if (data.currBet == undefined) data.currBet = 0;
+  var currentTurnText = data.currentTurn ? '｜当前玩家：' + data.currentTurn : '';
   $('#table-title').text(
-    'Hand ' +
+    '第 ' +
       data.round +
-      ' | ' +
-      data.stage +
-      ' | Top Bet: $' +
+      ' 手牌｜' +
+      translateStage(data.stage) +
+      '｜当前顶注：$' +
       data.topBet +
-      ' | Pot: $' +
-      data.pot
+      '｜底池：$' +
+      data.pot +
+      currentTurnText
   );
-  $('#opponentCards').html(
-    data.players.map(function (p) {
-      return renderOpponent(p.username, {
-        text: p.status,
-        money: p.money,
-        blind: p.blind,
-        bets: data.bets,
-        buyIns: p.buyIns,
-        isChecked: p.isChecked,
-      });
-    })
-  );
+  updateTableMetrics(data);
+  $('#turnHint').text(data.currentTurn ? '当前玩家：' + data.currentTurn : '');
+
+  var betByPlayer = buildBetByPlayerMap(data.bets);
+  var opponentMarkup = data.players.map(function (p) {
+    return renderOpponent(p.username, {
+      text: p.status,
+      money: p.money,
+      blind: p.blind,
+      bet: betByPlayer[p.username] || 0,
+      buyIns: p.buyIns,
+      isChecked: p.isChecked,
+    });
+  }).join('');
+  if (opponentMarkup !== lastOpponentMarkup) {
+    $('#opponentCards').html(opponentMarkup);
+    lastOpponentMarkup = opponentMarkup;
+  }
+
   renderSelf({
     money: data.myMoney,
     text: data.myStatus,
     blind: data.myBlind,
     bets: data.bets,
     buyIns: data.buyIns,
+    currentTurn: data.currentTurn,
   });
+
   if (!data.roundInProgress) {
     $('#usernameFold').hide();
     $('#usernameCheck').hide();
@@ -161,14 +383,28 @@ socket.on('rerender', function (data) {
     $('#usernameCall').hide();
     $('#usernameRaise').hide();
   }
+}
+
+socket.on('rerender', function (data) {
+  pendingRerenderData = data;
+  if (rerenderScheduled) return;
+  rerenderScheduled = true;
+
+  var raf = window.requestAnimationFrame || function (cb) { return window.setTimeout(cb, 16); };
+  raf(function () {
+    rerenderScheduled = false;
+    var next = pendingRerenderData;
+    pendingRerenderData = null;
+    doRerender(next);
+  });
 });
 
 socket.on('gameBegin', function (data) {
   $('#siteHeader').hide();
-  $('#joinModal').closeModal();
-  $('#hostModal').closeModal();
+  closeModalAndUnlock('#joinModal');
+  closeModalAndUnlock('#hostModal');
   if (data == undefined) {
-    alert('Error: invalid game room.');
+    alert('错误：无效的房间。');
   } else {
     $('#gameDiv').show();
   }
@@ -187,15 +423,16 @@ socket.on('reveal', function (data) {
 
   for (var i = 0; i < data.winners.length; i++) {
     if (data.winners[i] == data.username) {
-      Materialize.toast('You won the hand.', 4000);
+      Materialize.toast('你赢下了这一手。', 4000);
       break;
     }
   }
-  $('#table-title').text('Hand Winner(s): ' + data.winners);
+  $('#table-title').text('本手赢家：' + data.winners);
+  $('#turnHint').text('');
   $('#playNext').html(
-    '<button onClick=playNext() id="playNextButton" class="btn white black-text menuButtons">Start Next Hand</button>'
+    '<button onClick=playNext() id="playNextButton" class="btn white black-text menuButtons">开始下一手</button>'
   );
-  $('#blindStatus').text(data.hand);
+  $('#blindStatus').text(translateStatus(data.hand));
   $('#usernamesMoney').text('$' + data.money);
   $('#opponentCards').html(
     data.cards.map(function (p) {
@@ -216,13 +453,14 @@ socket.on('endHand', function (data) {
   $('#usernameBet').hide();
   $('#usernameCall').hide();
   $('#usernameRaise').hide();
-  $('#table-title').text(data.winner + ' takes the pot of $' + data.pot);
+  $('#table-title').text(data.winner + ' 赢得底池 $' + data.pot);
+  $('#turnHint').text('');
   $('#playNext').html(
-    '<button onClick=playNext() id="playNextButton" class="btn white black-text menuButtons">Start Next Hand</button>'
+    '<button onClick=playNext() id="playNextButton" class="btn white black-text menuButtons">开始下一手</button>'
   );
   $('#blindStatus').text('');
   if (data.folded == 'Fold') {
-    $('#status').text('You Folded');
+    $('#status').text('你已弃牌');
     $('#playerInformationCard').removeClass('theirTurn');
     $('#playerInformationCard').removeClass('green');
     $('#playerInformationCard').addClass('grey');
@@ -248,14 +486,17 @@ socket.on('endHand', function (data) {
 var beginHost = function () {
   if ($('#hostName-field').val() == '') {
     $('.toast').hide();
-    $('#hostModal').closeModal();
+    closeModalAndUnlock('#hostModal');
     Materialize.toast(
-      'Enter a valid display name. Maximum length is 12 characters.',
+      '请输入有效昵称，最多 12 个字符。',
       4000
     );
     $('#joinButton').removeClass('disabled');
   } else {
-    socket.emit('host', { username: $('#hostName-field').val() });
+    socket.emit('host', {
+      username: $('#hostName-field').val(),
+      settings: getHostSettingsFormValues(),
+    });
     $('#joinButton').addClass('disabled');
     $('#joinButton').off('click');
   }
@@ -270,10 +511,10 @@ var joinRoom = function () {
   ) {
     $('.toast').hide();
     Materialize.toast(
-      'Enter a valid display name and room code. Names must be 12 characters or fewer.',
+      '请输入有效昵称和房码，昵称最长 12 个字符。',
       4000
     );
-    $('#joinModal').closeModal();
+    closeModalAndUnlock('#joinModal');
     $('#hostButton').removeClass('disabled');
     $('#hostButton').on('click');
   } else {
@@ -296,9 +537,9 @@ var fold = function () {
 
 var bet = function () {
   if (parseInt($('#betRangeSlider').val()) == 0) {
-    Materialize.toast('You must bet more than $0! Try again.', 4000);
-  } else if (parseInt($('#betRangeSlider').val()) < 2) {
-    Materialize.toast('The minimum opening bet is $2.', 4000);
+    Materialize.toast('下注金额必须大于 $0，请重试。', 4000);
+  } else if (parseInt($('#betRangeSlider').val()) < roomSettings.blinds.big) {
+    Materialize.toast('最小开局下注为 $' + roomSettings.blinds.big + '。', 4000);
   } else {
     socket.emit('moveMade', {
       move: 'bet',
@@ -320,7 +561,7 @@ var raise = function () {
     parseInt($('#raiseRangeSlider').val()) == $('#raiseRangeSlider').prop('min')
   ) {
     Materialize.toast(
-      'You must raise higher than the current top bet! Try again.',
+      '加注金额必须高于当前顶注，请重试。',
       4000
     );
   } else {
@@ -365,31 +606,27 @@ function renderCard(card) {
 }
 
 function renderOpponent(name, data) {
-  var bet = 0;
-  if (data.bets != undefined) {
+  // Perf: accept precomputed bet (avoid scanning bets array for every player)
+  var bet = typeof data.bet !== 'undefined' ? data.bet : 0;
+  if (typeof data.bet === 'undefined' && data.bets != undefined) {
     var arr = data.bets[data.bets.length - 1];
     for (var pn = 0; pn < arr.length; pn++) {
       if (arr[pn].player == name) bet = arr[pn].bet;
     }
   }
-  var buyInsText =
-    data.buyIns > 0 ? (data.buyIns > 1 ? 'buy-ins' : 'buy-in') : '';
   if (data.buyIns > 0) {
     if (data.text == 'Fold') {
       return (
         '<div class="col s12 m2 opponentCard"><div class="card grey"><div class="card-content white-text"><span class="card-title">' +
         name +
-        ' (Fold)</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-        data.blind +
+        '（已弃牌）</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
+        translateBlind(data.blind) +
         '<br />' +
-        data.text +
+        formatOpponentAction(data.text, data.isChecked, bet) +
         '</p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
         data.money +
-        ' (' +
-        data.buyIns +
         ' ' +
-        buyInsText +
-        ')' +
+        formatBuyInSummary(data.buyIns) +
         '</div></div></div>'
       );
     } else {
@@ -398,17 +635,14 @@ function renderOpponent(name, data) {
           return (
             '<div class="col s12 m2 opponentCard"><div class="card yellow darken-3"><div class="card-content black-text"><span class="card-title">' +
             name +
-            '<br />Check</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            '<br />过牌</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action yellow lighten-1 black-text center-align" style="font-size: 20px;">$' +
             data.money +
-            ' (' +
-            data.buyIns +
             ' ' +
-            buyInsText +
-            ')' +
+            formatBuyInSummary(data.buyIns) +
             '</div></div></div>'
           );
         else if (bet == 0) {
@@ -416,35 +650,29 @@ function renderOpponent(name, data) {
             '<div class="col s12 m2 opponentCard"><div class="card yellow darken-3"><div class="card-content black-text"><span class="card-title">' +
             name +
             '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action yellow lighten-1 black-text center-align" style="font-size: 20px;">$' +
             data.money +
-            ' (' +
-            data.buyIns +
             ' ' +
-            buyInsText +
-            ')' +
+            formatBuyInSummary(data.buyIns) +
             '</div></div></div>'
           );
         } else {
           return (
             '<div class="col s12 m2 opponentCard"><div class="card yellow darken-3"><div class="card-content black-text"><span class="card-title">' +
             name +
-            '<br />Bet: $' +
+            '<br />下注：$' +
             bet +
             '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            translateBlind(data.blind) +
             '<br /><br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action yellow lighten-1 black-text center-align" style="font-size: 20px;">$' +
             data.money +
-            ' (' +
-            data.buyIns +
             ' ' +
-            buyInsText +
-            ')' +
+            formatBuyInSummary(data.buyIns) +
             '</div></div></div>'
           );
         }
@@ -453,17 +681,14 @@ function renderOpponent(name, data) {
           return (
             '<div class="col s12 m2 opponentCard"><div class="card green darken-2" ><div class="card-content white-text"><span class="card-title">' +
             name +
-            '<br />Check</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            '<br />过牌</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
             data.money +
-            ' (' +
-            data.buyIns +
             ' ' +
-            buyInsText +
-            ')' +
+            formatBuyInSummary(data.buyIns) +
             '</div></div></div>'
           );
         else if (bet == 0) {
@@ -471,35 +696,29 @@ function renderOpponent(name, data) {
             '<div class="col s12 m2 opponentCard"><div class="card green darken-2" ><div class="card-content white-text"><span class="card-title">' +
             name +
             '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
             data.money +
-            ' (' +
-            data.buyIns +
             ' ' +
-            buyInsText +
-            ')' +
+            formatBuyInSummary(data.buyIns) +
             '</div></div></div>'
           );
         } else {
           return (
             '<div class="col s12 m2 opponentCard"><div class="card green darken-2" ><div class="card-content white-text"><span class="card-title">' +
             name +
-            '<br />Bet: $' +
+            '<br />下注：$' +
             bet +
             '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
             data.money +
-            ' (' +
-            data.buyIns +
             ' ' +
-            buyInsText +
-            ')' +
+            formatBuyInSummary(data.buyIns) +
             '</div></div></div>'
           );
         }
@@ -512,10 +731,10 @@ function renderOpponent(name, data) {
       return (
         '<div class="col s12 m2 opponentCard"><div class="card grey"><div class="card-content white-text"><span class="card-title">' +
         name +
-        ' (Fold)</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-        data.blind +
+        '（已弃牌）</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
+        translateBlind(data.blind) +
         '<br />' +
-        data.text +
+        formatOpponentAction(data.text, data.isChecked, bet) +
         '</p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
         data.money +
         '</div></div></div>'
@@ -526,10 +745,10 @@ function renderOpponent(name, data) {
           return (
             '<div class="col s12 m2 opponentCard"><div class="card yellow darken-3"><div class="card-content black-text"><span class="card-title black-text">' +
             name +
-            '<br />Check</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            '<br />过牌</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action yellow lighten-1 black-text center-align" style="font-size: 20px;">$' +
             data.money +
             '</div></div></div>'
@@ -539,9 +758,9 @@ function renderOpponent(name, data) {
             '<div class="col s12 m2 opponentCard"><div class="card yellow darken-3"><div class="card-content black-text"><span class="card-title black-text">' +
             name +
             '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action yellow lighten-1 black-text center-align" style="font-size: 20px;">$' +
             data.money +
             '</div></div></div>'
@@ -550,12 +769,12 @@ function renderOpponent(name, data) {
           return (
             '<div class="col s12 m2 opponentCard"><div class="card yellow darken-3"><div class="card-content black-text"><span class="card-title black-text">' +
             name +
-            '<br />Bet: $' +
+            '<br />下注：$' +
             bet +
             '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            translateBlind(data.blind) +
             '<br /><br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action yellow lighten-1 black-text center-align" style="font-size: 20px;">$' +
             data.money +
             '</div></div></div>'
@@ -566,10 +785,10 @@ function renderOpponent(name, data) {
           return (
             '<div class="col s12 m2 opponentCard"><div class="card green darken-2" ><div class="card-content white-text"><span class="card-title">' +
             name +
-            '<br />Check</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            '<br />过牌</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
             data.money +
             '</div></div></div>'
@@ -579,9 +798,9 @@ function renderOpponent(name, data) {
             '<div class="col s12 m2 opponentCard"><div class="card green darken-2" ><div class="card-content white-text"><span class="card-title">' +
             name +
             '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
             data.money +
             '</div></div></div>'
@@ -590,12 +809,12 @@ function renderOpponent(name, data) {
           return (
             '<div class="col s12 m2 opponentCard"><div class="card green darken-2" ><div class="card-content white-text"><span class="card-title">' +
             name +
-            '<br />Bet: $' +
+            '<br />下注：$' +
             bet +
             '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br />' +
-            data.blind +
+            translateBlind(data.blind) +
             '<br />' +
-            data.text +
+            formatOpponentAction(data.text, data.isChecked, bet) +
             '</p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
             data.money +
             '</div></div></div>'
@@ -614,29 +833,24 @@ function renderOpponentCards(name, data) {
       if (arr[pn].player == name) bet = arr[pn].bet;
     }
   }
-  var buyInsText2 =
-    data.buyIns > 0 ? (data.buyIns > 1 ? 'buy-ins' : 'buy-in') : '';
   if (data.buyIns > 0) {
     if (data.folded)
       return (
         '<div class="col s12 m2 opponentCard"><div class="card grey" ><div class="card-content white-text"><span class="card-title">' +
         name +
-        ' | Bet: $' +
+        '｜下注：$' +
         bet +
         '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br /><br /></p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
         data.money +
-        ' (' +
-        data.buyIns +
         ' ' +
-        buyInsText2 +
-        ')' +
+        formatBuyInSummary(data.buyIns) +
         '</div></div></div>'
       );
     else
       return (
         '<div class="col s12 m2 opponentCard"><div class="card green darken-2" ><div class="card-content white-text"><span class="card-title">' +
         name +
-        ' | Bet: $' +
+        '｜下注：$' +
         bet +
         '</span><p><div class="center-align"> ' +
         renderOpponentCard(data.cards[0]) +
@@ -645,11 +859,8 @@ function renderOpponentCards(name, data) {
         data.endHand +
         '</p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
         data.money +
-        ' (' +
-        data.buyIns +
         ' ' +
-        buyInsText2 +
-        ')' +
+        formatBuyInSummary(data.buyIns) +
         '</div></div></div>'
       );
   } else {
@@ -657,7 +868,7 @@ function renderOpponentCards(name, data) {
       return (
         '<div class="col s12 m2 opponentCard"><div class="card grey" ><div class="card-content white-text"><span class="card-title">' +
         name +
-        ' | Bet: $' +
+        '｜下注：$' +
         bet +
         '</span><p><div class="center-align"><div class="blankCard" id="opponent-card" /><div class="blankCard" id="opponent-card" /></div><br /><br /><br /><br /><br /><br /></p></div><div class="card-action green darken-3 white-text center-align" style="font-size: 20px;">$' +
         data.money +
@@ -667,7 +878,7 @@ function renderOpponentCards(name, data) {
       return (
         '<div class="col s12 m2 opponentCard"><div class="card green darken-2" ><div class="card-content white-text"><span class="card-title">' +
         name +
-        ' | Bet: $' +
+        '｜下注：$' +
         bet +
         '</span><p><div class="center-align"> ' +
         renderOpponentCard(data.cards[0]) +
@@ -715,15 +926,16 @@ function renderOpponentCard(card) {
 }
 
 function updateBetDisplay() {
-  if ($('#betRangeSlider').val() == $('#usernamesMoney').text()) {
+  var currentMoney = parseInt($('#usernamesMoney').text().replace('$', ''), 10);
+  if (parseInt($('#betRangeSlider').val(), 10) === currentMoney) {
     $('#betDisplay').html(
-      '<h3 class="center-align">All-In $' +
+      '<h3 class="center-align">全下 $' +
         $('#betRangeSlider').val() +
-        '</h36>'
+        '</h3>'
     );
   } else {
     $('#betDisplay').html(
-      '<h3 class="center-align">$' + $('#betRangeSlider').val() + '</h36>'
+      '<h3 class="center-align">$' + $('#betRangeSlider').val() + '</h3>'
     );
   }
 }
@@ -741,25 +953,40 @@ function updateBetModal() {
 
 function updateRaiseDisplay() {
   $('#raiseDisplay').html(
-      '<h3 class="center-align">Raise top bet to $' +
+    '<h3 class="center-align">把顶注加到 $' +
       $('#raiseRangeSlider').val() +
       '</h3>'
   );
 }
 
 socket.on('updateRaiseModal', function (data) {
+  var baseTopBet = parseInt(data.topBet, 10) || 0;
+  var blindStep = Math.max(parseInt(roomSettings.blinds.big, 10) || 0, 1);
+  var minRaise = baseTopBet + blindStep;
+  var maxRaise = parseInt(data.usernameMoney, 10) || 0;
+  if (maxRaise < minRaise) minRaise = maxRaise;
   $('#raiseRangeSlider').attr({
-    max: data.usernameMoney,
-    min: data.topBet,
+    max: maxRaise,
+    min: minRaise,
   });
+  $('#raiseRangeSlider').val(minRaise);
+  updateRaiseDisplay();
+  $('#raiseHelpText').text(
+    maxRaise <= minRaise
+      ? '你只能全下或跟注，当前筹码不足以构成标准加注。'
+      : '最小加注会按大盲注起跳，更接近真实牌桌。'
+  );
 });
 
 function updateRaiseModal() {
   document.getElementById('raiseRangeSlider').value = 0;
+  $('#raiseHelpText').text('正在计算可加注范围…');
   socket.emit('raiseModalData', {});
 }
 
 socket.on('displayPossibleMoves', function (data) {
+  lastPossibleMoves = data;
+  renderPossibleMovesSummary(data);
   if (data.fold == 'yes') $('#usernameFold').show();
   else $('#usernameFold').hide();
   if (data.check == 'yes') $('#usernameCheck').show();
@@ -768,12 +995,22 @@ socket.on('displayPossibleMoves', function (data) {
   else $('#usernameBet').hide();
   if (data.call != 'no' || data.call == 'all-in') {
     $('#usernameCall').show();
-    if (data.call == 'all-in') $('#usernameCall').text('Call All-In');
-    else $('#usernameCall').text('Call $' + data.call);
+    if (data.call == 'all-in') $('#usernameCall').text('跟注全下');
+    else $('#usernameCall').text('跟注 $' + data.call);
   } else $('#usernameCall').hide();
   if (data.raise == 'yes') $('#usernameRaise').show();
   else $('#usernameRaise').hide();
 });
+
+function shouldRequestPossibleMoves(currentText) {
+  if (currentText === 'Their Turn') {
+    const shouldEmit = lastSelfTurnState !== 'Their Turn';
+    lastSelfTurnState = 'Their Turn';
+    return shouldEmit;
+  }
+  lastSelfTurnState = currentText;
+  return false;
+}
 
 function renderSelf(data) {
   $('#playNext').empty();
@@ -785,25 +1022,34 @@ function renderSelf(data) {
     $('#playerInformationCard').addClass('darken-2');
     $('#usernamesCards').removeClass('white-text');
     $('#usernamesCards').addClass('black-text');
-    $('#status').text('Your Turn');
-    Materialize.toast('Your turn.', 4000);
-    socket.emit('evaluatePossibleMoves', {});
+    $('#status').text('轮到你操作');
+    $('#turnHint').text(
+      data.currentTurn ? '当前玩家：' + data.currentTurn + '（就是你）' : '轮到你操作'
+    );
+    if (shouldRequestPossibleMoves(data.text)) {
+      Materialize.toast('轮到你操作了。', 4000);
+      socket.emit('evaluatePossibleMoves', {});
+    }
   } else if (data.text == 'Fold') {
-    $('#status').text('You Folded');
+    lastSelfTurnState = 'Fold';
+    $('#status').text('你已弃牌');
     $('#playerInformationCard').removeClass('green');
     $('#playerInformationCard').removeClass('yellow');
     $('#playerInformationCard').removeClass('darken-2');
     $('#playerInformationCard').addClass('grey');
     $('#usernamesCards').removeClass('black-text');
     $('#usernamesCards').addClass('white-text');
-    Materialize.toast('You folded', 3000);
+    Materialize.toast('你已弃牌。', 3000);
     $('#usernameFold').hide();
     $('#usernameCheck').hide();
     $('#usernameBet').hide();
     $('#usernameCall').hide();
     $('#usernameRaise').hide();
+    renderPossibleMovesSummary(null);
   } else {
+    lastSelfTurnState = data.text;
     $('#status').text('');
+    $('#turnHint').text('');
     $('#usernamesCards').removeClass('black-text');
     $('#usernamesCards').addClass('white-text');
     $('#playerInformationCard').removeClass('grey');
@@ -816,6 +1062,7 @@ function renderSelf(data) {
     $('#usernameBet').hide();
     $('#usernameCall').hide();
     $('#usernameRaise').hide();
+    renderPossibleMovesSummary(null);
   }
-  $('#blindStatus').text(data.blind);
+  $('#blindStatus').text(translateBlind(data.blind));
 }

@@ -1,7 +1,7 @@
 {
   "name": "holdem-club",
   "version": "1.0.0",
-  "description": "Holdem Club is a realtime multiplayer Texas Hold'em MVP built with Node, Express, and socket.io.",
+  "description": "River Club is a realtime multiplayer Texas Hold'em MVP built with Node, Express, and socket.io.",
   "main": "index.js",
   "repository": {
     "type": "git",

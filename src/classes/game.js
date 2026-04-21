@@ -30,6 +30,17 @@ const Game = function (name, host) {
   this.debug = false;
   this.smallBlind = 1;
   this.bigBlind = 2;
+  this.settings = {
+    blinds: {
+      small: 1,
+      big: 2,
+    },
+    buyIn: {
+      startingStack: 100,
+      autoRebuy: true,
+      autoRebuyStack: 100,
+    },
+  };
 
   const constructor = (function () {})(this);
 
@@ -38,6 +49,61 @@ const Game = function (name, host) {
       console.log(...arguments);
     }
   };
+
+  this.configureSettings = (settings) => {
+    const defaultSettings = {
+      blinds: { small: 1, big: 2 },
+      buyIn: { startingStack: 100, autoRebuy: true, autoRebuyStack: 100 },
+    };
+    const incoming = settings || {};
+    const incomingBlinds = incoming.blinds || {};
+    const incomingBuyIn = incoming.buyIn || {};
+    const small = Number.isFinite(incomingBlinds.small)
+      ? Math.max(1, Math.min(1000, Math.floor(incomingBlinds.small)))
+      : defaultSettings.blinds.small;
+    const requestedBig = Number.isFinite(incomingBlinds.big)
+      ? Math.max(2, Math.min(2000, Math.floor(incomingBlinds.big)))
+      : defaultSettings.blinds.big;
+    const big = Math.max(small + 1, requestedBig);
+    const startingStack = Number.isFinite(incomingBuyIn.startingStack)
+      ? Math.max(big * 10, Math.min(50000, Math.floor(incomingBuyIn.startingStack)))
+      : defaultSettings.buyIn.startingStack;
+    const autoRebuy =
+      typeof incomingBuyIn.autoRebuy === 'boolean'
+        ? incomingBuyIn.autoRebuy
+        : defaultSettings.buyIn.autoRebuy;
+    const autoRebuyStack = Number.isFinite(incomingBuyIn.autoRebuyStack)
+      ? Math.max(big * 10, Math.min(50000, Math.floor(incomingBuyIn.autoRebuyStack)))
+      : startingStack;
+
+    this.settings = {
+      blinds: { small: small, big: big },
+      buyIn: {
+        startingStack: startingStack,
+        autoRebuy: autoRebuy,
+        autoRebuyStack: autoRebuy ? autoRebuyStack : startingStack,
+      },
+    };
+    this.smallBlind = this.settings.blinds.small;
+    this.bigBlind = this.settings.blinds.big;
+    this.autoBuyIns = this.settings.buyIn.autoRebuy;
+  };
+
+  this.getSettings = () => this.settings;
+
+  this.isHostSocket = (socketId) => {
+    const hostPlayer = this.players.find((player) => player.getUsername() === this.host);
+    return hostPlayer != undefined && hostPlayer.socket.id === socketId;
+  };
+
+  this.canStartGame = () => this.players.length >= 2 && this.status === 0;
+
+  this.getRoomState = () => ({
+    code: this.getCode(),
+    host: this.getHostName(),
+    players: this.getPlayersArray(),
+    settings: this.getSettings(),
+  });
 
   this.assignBlind = () => {
     this.roundData.smallBlind =
@@ -101,7 +167,7 @@ const Game = function (name, host) {
     if (this.autoBuyIns) {
       for (player of this.players) {
         if (player.getMoney() == 0) {
-          player.money = 100;
+          player.money = this.settings.buyIn.autoRebuyStack;
           player.buyIns = player.buyIns + 1;
         }
       }
@@ -109,41 +175,29 @@ const Game = function (name, host) {
 
     // handle big and small blind initial forced bets
 
-    if (this.players[this.roundData.bigBlind].money < this.bigBlind) {
-      this.players[this.roundData.bigBlind].money = 0;
-      this.players[this.roundData.bigBlind].allIn = true;
-      this.roundData.bets.push([
-        {
-          player: this.players[this.roundData.bigBlind].getUsername(),
-          bet: this.bigBlind - this.players[this.roundData.bigBlind].money,
-        },
-      ]);
-    } else {
-      this.players[this.roundData.bigBlind].money =
-        this.players[this.roundData.bigBlind].money - this.bigBlind;
-      this.roundData.bets.push([
-        {
-          player: this.players[this.roundData.bigBlind].getUsername(),
-          bet: this.bigBlind,
-        },
-      ]);
+    const bigBlindPlayer = this.players[this.roundData.bigBlind];
+    const bigBlindBet = Math.min(bigBlindPlayer.money, this.bigBlind);
+    bigBlindPlayer.money -= bigBlindBet;
+    if (bigBlindPlayer.money === 0) {
+      bigBlindPlayer.allIn = true;
     }
+    this.roundData.bets.push([
+      {
+        player: bigBlindPlayer.getUsername(),
+        bet: bigBlindBet,
+      },
+    ]);
 
-    if (this.players[this.roundData.smallBlind].money == this.smallBlind) {
-      this.players[this.roundData.smallBlind].money = 0;
-      this.roundData.bets[0].push({
-        player: this.players[this.roundData.smallBlind].getUsername(),
-        bet: this.smallBlind - this.players[this.roundData.bigBlind].money,
-      });
-      this.players[this.roundData.smallBlind].allIn = true;
-    } else {
-      this.players[this.roundData.smallBlind].money =
-        this.players[this.roundData.smallBlind].money - this.smallBlind;
-      this.roundData.bets[0].push({
-        player: this.players[this.roundData.smallBlind].getUsername(),
-        bet: this.smallBlind,
-      });
+    const smallBlindPlayer = this.players[this.roundData.smallBlind];
+    const smallBlindBet = Math.min(smallBlindPlayer.money, this.smallBlind);
+    smallBlindPlayer.money -= smallBlindBet;
+    if (smallBlindPlayer.money === 0) {
+      smallBlindPlayer.allIn = true;
     }
+    this.roundData.bets[0].push({
+      player: smallBlindPlayer.getUsername(),
+      bet: smallBlindBet,
+    });
 
     this.roundNum++;
     this.rerender();
@@ -175,6 +229,7 @@ const Game = function (name, host) {
         myBet: this.getPlayerBetInStage(this.players[pn]),
         myStatus: this.players[pn].getStatus(),
         myBlind: this.players[pn].getBlind(),
+        currentTurn: this.roundData.turn,
         roundInProgress: this.roundInProgress,
         buyIns: this.players[pn].buyIns,
       });
@@ -287,16 +342,15 @@ const Game = function (name, host) {
   };
 
   this.updateStage = () => {
+    const nextTurnIndex = this.findFirstToGoPlayer();
     for (let i = 0; i < this.players.length; i++) {
-      if (
-        i === this.findFirstToGoPlayer() &&
-        this.players[i].getStatus() !== 'Fold'
-      ) {
+      if (i === nextTurnIndex && this.players[i].getStatus() !== 'Fold') {
         this.players[i].setStatus('Their Turn');
       } else if (this.players[i].getStatus() !== 'Fold') {
         this.players[i].setStatus('');
       }
     }
+    this.roundData.turn = this.players[nextTurnIndex].getUsername();
     this.roundData.bets.push([]);
   };
 
@@ -370,7 +424,7 @@ const Game = function (name, host) {
         //check if move just made was a fold
         if (this.lastMoveParsed.move == 'Fold') {
           currTurnIndex = this.players.findIndex(
-            (p) => p === this.lastMoveParsed.player
+            (p) => p.getUsername() === this.lastMoveParsed.player
           );
           this.lastMoveParsed = { move: '', player: '' };
         } else {
@@ -389,6 +443,7 @@ const Game = function (name, host) {
           && count < Object.keys(this.players).length * 2 // Avoid infinite loop, allow search twice on all players
         );
         this.players[currTurnIndex].setStatus('Their Turn');
+        this.roundData.turn = this.players[currTurnIndex].getUsername();
       }
     }
     if (!handOver) {
@@ -644,9 +699,21 @@ const Game = function (name, host) {
     }
     const currRound = this.getCurrentRoundBets();
     if (this.roundData.bets.length == 1) {
+      // Pre-flop special-case: in classic rules the Big Blind gets "option" to act.
+      // In our implementation we track that via `bigBlindWent`.
+      //
+      // However, if the Big Blind is already all-in from the forced blind (or folded/disconnected),
+      // they cannot take that option. In that case, we must NOT block stage completion,
+      // otherwise the hand can deadlock with everyone waiting on `bigBlindWent` forever.
+      const bigBlindPlayer = this.players[this.roundData.bigBlind];
+      const bigBlindCanAct =
+        bigBlindPlayer &&
+        bigBlindPlayer.getStatus() != 'Fold' &&
+        !bigBlindPlayer.allIn;
+
       allPlayersPresent =
         currRound.filter((a) => a.bet != 'Fold').length >= numUnfolded &&
-        this.bigBlindWent;
+        (!bigBlindCanAct || this.bigBlindWent);
     } else {
       allPlayersPresent =
         currRound.filter((a) => a.bet != 'Fold').length >= numUnfolded;
@@ -685,9 +752,23 @@ const Game = function (name, host) {
     return this.gameName;
   };
 
+  this.endGame = () => {
+    this.status = 0;
+  };
+
+  this.configureSettings();
+
   this.addPlayer = (playerName, socket) => {
-    const player = new Player(playerName, socket, this.debug);
+    const player = new Player(
+      playerName,
+      socket,
+      this.debug,
+      this.settings.buyIn.startingStack
+    );
     this.players.push(player);
+    if (this.roundNum > 0) {
+      this.rerender();
+    }
     return player;
   };
 
@@ -815,7 +896,7 @@ const Game = function (name, host) {
         bet: 'Fold',
       });
     }
-    this.lastMoveParsed = { move: 'Fold', player: player };
+    this.lastMoveParsed = { move: 'Fold', player: player.getUsername() };
     this.moveOntoNextPlayer();
     return true;
   };

@@ -1,19 +1,19 @@
 {
-    "name": "Holdem Club",
-    "short_name": "Holdem Club",
-    "icons": [
-        {
-            "src": "/android-chrome-192x192.png",
-            "sizes": "192x192",
-            "type": "image/png"
-        },
-        {
-            "src": "/android-chrome-384x384.png",
-            "sizes": "384x384",
-            "type": "image/png"
-        }
-    ],
-    "theme_color": "#08141f",
-    "background_color": "#08141f",
-    "display": "standalone"
+  "name": "River Club",
+  "short_name": "River Club",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#102117",
+  "background_color": "#102117",
+  "display": "standalone"
 }

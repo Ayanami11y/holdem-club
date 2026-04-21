@@ -1,6 +1,6 @@
-# Holdem Club
+# River Club
 
-Holdem Club is a lightweight realtime multiplayer Texas Hold'em web app built for quick private games with friends. One player hosts a table, shares a short room code, and everyone joins from their own browser.
+River Club is a lightweight realtime multiplayer Texas Hold'em web app built for quick private games with friends. One player hosts a table, shares a short room code, and everyone joins from their own browser.
 
 ## What It Includes
 
@@ -36,9 +36,9 @@ npm test
 
 ## Product Notes
 
-- This repository is being adapted into a standalone MVP called Holdem Club.
+- This repository is being adapted into a standalone MVP called River Club.
 - Screenshots can be added later.
-- TODO: replace the inherited favicon and social preview assets with Holdem Club-specific artwork.
+- TODO: replace the inherited favicon and social preview assets with River Club-specific artwork.
 
 ## Attribution
 
